@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -64,13 +63,22 @@ func main() {
 			openai.SystemMessage("你是一个简洁的中文技术助手。"),
 			openai.UserMessage("用 3 句话解释什么是流式响应。"),
 		},
+		// 流式下 usage 默认不返回，显式索取；usage 挂在最后一个独立 chunk 上
+		StreamOptions: openai.ChatCompletionStreamOptionsParam{
+			IncludeUsage: openai.Bool(true),
+		},
 	})
 	fmt.Printf("=== 流式（SDK）开始于 %v ===\n<<< ", time.Since(streamStart))
 
 	var full strings.Builder
 	chunks := 0
+	var usage *openai.CompletionUsage
 	for stream.Next() {
 		chunk := stream.Current()
+		if chunk.Usage.TotalTokens > 0 {
+			u := chunk.Usage
+			usage = &u // 最后一个独立 chunk：choices 为空数组，只带 usage
+		}
 		for _, c := range chunk.Choices {
 			if c.Delta.Content != "" {
 				fmt.Print(c.Delta.Content)
@@ -83,8 +91,11 @@ func main() {
 	if err := stream.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "\n流式出错: %v\n", err)
 	}
-	io.Discard.Write(nil) // 保持 io 导入（练习代码用不到）
-	fmt.Printf("\n\n=== %d 个 chunk，总耗时 %v ===\n", chunks, time.Since(streamStart))
+	if usage != nil {
+		fmt.Printf("\n<<< Token: prompt=%d completion=%d total=%d\n",
+			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+	}
+	fmt.Printf("=== %d 个 chunk，总耗时 %v ===\n", chunks, time.Since(streamStart))
 }
 
 func getenv(k, def string) string {
