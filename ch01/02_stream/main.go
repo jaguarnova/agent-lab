@@ -40,7 +40,14 @@ type Message struct {
 type ChatRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"` // 关键开关：true = SSE 流式
+	Stream   bool      `json:"stream"`        // 关键开关：true = SSE 流式
+	// 流式模式下 usage 默认不返回，需显式请求：服务端会在 [DONE] 前
+	// 发一个 choices 为空数组的独立 chunk 携带 usage
+	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
+}
+
+type StreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type Delta struct {
@@ -55,6 +62,13 @@ type StreamChoice struct {
 
 type StreamResponse struct {
 	Choices []StreamChoice `json:"choices"`
+	Usage   *Usage         `json:"usage"` // 仅最后一个 chunk 携带，choices 为空数组
+}
+
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
 }
 
 const (
@@ -94,16 +108,23 @@ func main() {
 	// 无状态重试：messages 不变，断了整体重发。LLM 调用的断线恢复就这么简单。
 	var full strings.Builder
 	chunks := 0
+	var usage *Usage
 	totalStart := time.Now()
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		start := time.Now()
 		var err error
-		chunks, full, err = streamOnce(baseURL, apiKey, messages)
+		chunks, full, usage, err = streamOnce(baseURL, apiKey, messages)
 
 		if err == nil {
 			fmt.Printf("\n\n<<< 成功（第 %d 次尝试）：共 %d 个增量 chunk，本次耗时 %v，全文 %d 字\n",
 				attempt, chunks, time.Since(start), len(full.String()))
+			if usage != nil {
+				fmt.Printf("<<< Token: prompt=%d completion=%d total=%d\n",
+					usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+			} else {
+				fmt.Fprintf(os.Stderr, "<<< 供应商未返回 usage（未实现 include_usage）\n")
+			}
 			fmt.Printf("<<< 含重试总耗时 %v\n", time.Since(totalStart))
 			return
 		}
@@ -138,18 +159,20 @@ func (e *httpStatusError) Error() string {
 
 // streamOnce 发起一次流式调用并完整读完（或中途断开）。
 // full 返回本次已收到的部分内容（即使失败也返回，便于观察"半截回复"）。
-func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builder, error) {
+func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builder, *Usage, error) {
 	var full strings.Builder
 	chunks := 0
+	var usage *Usage
 
 	reqBody, _ := json.Marshal(ChatRequest{
 		Model:    getenv("MODEL", "deepseek-flash"),
 		Messages: messages,
-		Stream:   true,
+		Stream:        true,
+		StreamOptions: &StreamOptions{IncludeUsage: true}, // 流式下 usage 默认不返回，显式索取
 	})
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
-		return 0, full, err
+		return 0, full, usage, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
@@ -166,13 +189,13 @@ func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builde
 	start := time.Now()
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		return 0, full, err
+		return 0, full, usage, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return 0, full, &httpStatusError{StatusCode: resp.StatusCode, Body: string(body)}
+		return 0, full, usage, &httpStatusError{StatusCode: resp.StatusCode, Body: string(body)}
 	}
 
 	fmt.Printf(">>> HTTP %d，开始流式接收（耗时 %v）\n<<< ", resp.StatusCode, time.Since(start))
@@ -190,13 +213,16 @@ func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builde
 		}
 		payload := strings.TrimPrefix(line, "data: ")
 		if payload == "[DONE]" {
-			return chunks, full, nil
+			return chunks, full, usage, nil
 		}
 
 		var sr StreamResponse
 		if err := json.Unmarshal([]byte(payload), &sr); err != nil {
 			fmt.Fprintf(os.Stderr, "\n[跳过无法解析的 chunk: %s]\n", payload)
 			continue
+		}
+		if sr.Usage != nil {
+			usage = sr.Usage // 最后一个 chunk：choices 为空数组，只带 usage
 		}
 		for _, c := range sr.Choices {
 			if c.Delta.Content != "" {
@@ -209,13 +235,13 @@ func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builde
 	if err := scanner.Err(); err != nil {
 		// context 被 watchdog 取消时，阻塞中的 Read 会以这个错误醒来
 		if errors.Is(err, context.Canceled) {
-			return chunks, full, errIdleTimeout
+			return chunks, full, usage, errIdleTimeout
 		}
-		return chunks, full, err // 网络错误（RST 等），可重试
+		return chunks, full, usage, err // 网络错误（RST 等），可重试
 	}
 
 	// 扫描正常结束但没收到 [DONE]：服务端提前关连接，视作可重试失败
-	return chunks, full, fmt.Errorf("流在收到 [DONE] 前结束（已收 %d 字）", len(full.String()))
+	return chunks, full, usage, fmt.Errorf("流在收到 [DONE] 前结束（已收 %d 字）", len(full.String()))
 }
 
 func getenv(k, def string) string {
