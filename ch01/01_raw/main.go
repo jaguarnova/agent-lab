@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -26,8 +27,9 @@ type Message struct {
 type ChatRequest struct {
 	Model       string    `json:"model"`
 	Messages    []Message `json:"messages"`
-	Temperature float64   `json:"temperature,omitempty"` // 采样温度：越高越随机
-	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Temperature float64   `json:"temperature,omitempty"` // 采样温度：越高越随机，工具调用用 0~0.2
+	TopP        float64   `json:"top_p,omitempty"`       // 候选截断：与 temperature 通常二选一调
+	MaxTokens   int       `json:"max_tokens,omitempty"`  // 输出上限，超限 finish_reason=length
 }
 
 // ---- 响应体 ----
@@ -65,8 +67,9 @@ func main() {
 			{Role: "system", Content: "你是一个简洁的中文技术助手，回答不超过 100 字。"},
 			{Role: "user", Content: "用一句话解释什么是 LLM 的 Token。"},
 		},
-		Temperature: 0.7,
-		MaxTokens:   200,
+		Temperature: getfloat("TEMPERATURE", 0.7),
+		MaxTokens:   int(getfloat("MAX_TOKENS", 200)),
+		TopP:        getfloat("TOP_P", 0), // 默认 0 = 不序列化（omitempty），走服务端默认
 	}, "", "  ")
 	if err != nil {
 		panic(err)
@@ -108,6 +111,15 @@ func main() {
 	fmt.Printf("<<< 回复: %s\n", chatResp.Choices[0].Message.Content)
 	fmt.Printf("<<< Token 用量: prompt=%d completion=%d total=%d\n",
 		chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens, chatResp.Usage.TotalTokens)
+}
+
+func getfloat(k string, def float64) float64 {
+	if v := getenv(k, ""); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
 
 func getenv(k, def string) string {

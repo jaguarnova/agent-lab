@@ -20,6 +20,9 @@ ch01/
 | `OPENAI_API_KEY` | Bearer Token | 必填 |
 | `MODEL` | 模型 ID | 各程序内默认 |
 | `IDLE_TIMEOUT` | （仅 02_stream）流空闲超时，如 `2s`/`30s` | `30s` |
+| `TEMPERATURE` | 采样温度 | `0.7` |
+| `TOP_P` | 候选截断（不设则走服务端默认） | 不发送 |
+| `MAX_TOKENS` | 输出 token 上限 | `200` |
 
 实测过的供应商：DeepSeek 官方直连、OpenRouter 聚合（z-ai/glm-5.3-flash、openai/gpt-5.6-sol）。同一份代码零改动切换，仅换 `OPENAI_BASE_URL` + `MODEL`。
 
@@ -46,6 +49,22 @@ data: [DONE]\n\n                                          ← OpenAI 事实惯�
 - **`[DONE]` 不是 SSE 标准**，是 OpenAI 的私有约定被行业跟随；Anthropic/Gemini 原生协议不用它
 - 健壮的结束判断三重兜底：`[DONE]` 标记 → `finish_reason` 非空 → 连接关闭
 - 流式增量用 `delta` 替代非流式的 `message`；`completion_tokens` 只在部分供应商的流里返回
+
+### 2.3 采样参数（三个程序统一支持）
+
+| 参数 | 作用 | 设置建议 |
+|---|---|---|
+| `temperature` | 改变概率分布的形状（压平/收尖） | 工具调用、结构化输出用 0~0.2；创作 0.7+ |
+| `top_p` | 按累计概率截断候选集（nucleus sampling） | 与 temperature 通常二选一调；默认 1.0 不动 |
+| `max_tokens` | 输出上限 | 超限后 `finish_reason=length`，非自然结束 |
+
+三个概念的关系：LLM 每步对词表全部 token 打出概率分布 → `top_p` 截掉长尾只留累计 P% 的头部 → `temperature` 调整头部候选的冒险程度 → 抽签产出下一个 token。
+
+实现细节：
+
+- Go struct 用 `omitempty` / SDK 用 `param.Opt`（`openai.Float` 赋值才序列化）——语义一致，都支持"不发送走服务端默认"
+- 01_raw 的 `TOP_P` 默认 0 触发 `omitempty` 不发送；要显式测试设 `TOP_P=0.9`
+- SDK 流式的 usage 同样需要 `StreamOptions{IncludeUsage: true}` 显式索取，usage 挂在 `[DONE]` 前最后一个 choices 为空的独立 chunk 上
 
 ## 3. 超时与流式读取的正确姿势
 
@@ -124,4 +143,5 @@ SSE 无法续流（没有恢复握手），但 LLM 调用是无状态的：**`me
 - [ ] 结束判断放宽为 `finish_reason` 优先（接更多供应商前）
 - [ ] token/latency 落盘记录（当前仅 stdout）
 - [ ] 三个练习合并为统一 CLI Client（阶段一产出物要求）
+- [x] 采样参数（temperature/top_p/max_tokens）env 可配，三程序统一（2026-09-22）
 - [ ] 阶段二：Tool Calling + Structured Output，在此 Client 上迭代
