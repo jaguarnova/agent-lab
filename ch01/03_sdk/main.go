@@ -2,7 +2,7 @@
 // 阶段一练习 3：用 OpenAI 官方 Go SDK (openai-go) 实现与 01_raw 完全相同的功能，
 // 对比"SDK 帮你做了什么、藏了什么"。
 //
-// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx MODEL=deepseek-chat go run ./ch01/03_sdk
+// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx MODEL=deepseek-flash go run ./ch01/03_sdk
 package main
 
 import (
@@ -30,7 +30,7 @@ func main() {
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseURL),
 	)
-	model := getenv("MODEL", "deepseek-chat")
+	model := getenv("MODEL", "deepseek-flash")
 	prompt := "用一句话解释什么是 LLM 的上下文窗口。"
 
 	// ---- 非流式：对比 01_raw ----
