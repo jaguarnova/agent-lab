@@ -38,9 +38,12 @@ type Message struct {
 }
 
 type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`        // 关键开关：true = SSE 流式
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Stream      bool      `json:"stream"`              // 关键开关：true = SSE 流式
+	Temperature float64   `json:"temperature,omitempty"` // 随机性：工具调用/结构化输出用 0~0.2
+	TopP        float64   `json:"top_p,omitempty"`       // 候选截断：与 temperature 二选一调
+	MaxTokens   int       `json:"max_tokens,omitempty"`  // 输出上限，超限 finish_reason=length
 	// 流式模式下 usage 默认不返回，需显式请求：服务端会在 [DONE] 前
 	// 发一个 choices 为空数组的独立 chunk 携带 usage
 	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
@@ -165,9 +168,11 @@ func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builde
 	var usage *Usage
 
 	reqBody, _ := json.Marshal(ChatRequest{
-		Model:    getenv("MODEL", "deepseek-flash"),
-		Messages: messages,
-		Stream:        true,
+		Model:       getenv("MODEL", "deepseek-flash"),
+		Messages:    messages,
+		Temperature: getfloat("TEMPERATURE", 0.7),
+		MaxTokens:   int(getfloat("MAX_TOKENS", 200)),
+		Stream:      true,
 		StreamOptions: &StreamOptions{IncludeUsage: true}, // 流式下 usage 默认不返回，显式索取
 	})
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(reqBody))
@@ -242,6 +247,15 @@ func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builde
 
 	// 扫描正常结束但没收到 [DONE]：服务端提前关连接，视作可重试失败
 	return chunks, full, usage, fmt.Errorf("流在收到 [DONE] 前结束（已收 %d 字）", len(full.String()))
+}
+
+func getfloat(k string, def float64) float64 {
+	if v := getenv(k, ""); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
 
 func getenv(k, def string) string {

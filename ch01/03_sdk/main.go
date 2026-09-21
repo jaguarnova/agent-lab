@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,9 @@ func main() {
 			openai.SystemMessage("你是一个简洁的中文技术助手，回答不超过 100 字。"),
 			openai.UserMessage(prompt),
 		},
-		MaxTokens: openai.Int(200),
+		MaxTokens:   openai.Int(200),
+		Temperature: openai.Float(0.7), // 上下文窗口解释类问题：低随机更稳
+		TopP:        openai.Float(0.9), // 演示 top_p 用法：与 temperature 通常二选一调
 	})
 	if err != nil {
 		panic(err)
@@ -67,6 +70,8 @@ func main() {
 		StreamOptions: openai.ChatCompletionStreamOptionsParam{
 			IncludeUsage: openai.Bool(true),
 		},
+		Temperature: openai.Float(getfloat("TEMPERATURE", 0.7)),
+		MaxTokens:   openai.Int(int64(getfloat("MAX_TOKENS", 200))),
 	})
 	fmt.Printf("=== 流式（SDK）开始于 %v ===\n<<< ", time.Since(streamStart))
 
@@ -96,6 +101,15 @@ func main() {
 			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
 	}
 	fmt.Printf("=== %d 个 chunk，总耗时 %v ===\n", chunks, time.Since(streamStart))
+}
+
+func getfloat(k string, def float64) float64 {
+	if v := getenv(k, ""); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
 
 func getenv(k, def string) string {
