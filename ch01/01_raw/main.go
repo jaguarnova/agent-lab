@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,12 +81,11 @@ func main() {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	// 后端老规矩：任何外部调用都必须有超时
-	ctx := req.Context()
-	client := &http.Client{Timeout: 60 * time.Second}
-
+	// 用 context 承担超时：取消信号可沿调用链传播（Agent Loop 的前置范式）
+	ctx, cancel := context.WithTimeout(req.Context(), 60*time.Second)
+	defer cancel()
 	start := time.Now()
-	resp, err := client.Do(req.WithContext(ctx))
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		panic(err)
 	}
