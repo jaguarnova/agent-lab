@@ -4,7 +4,7 @@
 // SSE（Server-Sent Events）协议要点：
 //   - HTTP 响应 Content-Type: text/event-stream，body 是一个持久的文本流
 //   - 每条事件以空行分隔，形如:
-//       data: {"id":"...","choices":[{"delta":{"content":"你"}}]}
+//     data: {"id":"...","choices":[{"delta":{"content":"你"}}]}
 //   - 流结束时服务端发送: data: [DONE]
 //   - 与非流式的区别：choices[].delta（增量）替代 choices[].message（全量）
 //
@@ -57,7 +57,7 @@ func main() {
 	}
 
 	reqBody, _ := json.Marshal(ChatRequest{
-		Model: getenv("MODEL", "deepseek-chat"),
+		Model: getenv("MODEL", "deepseek-flash"),
 		Messages: []Message{
 			{Role: "system", Content: "你是一个简洁的中文技术助手。"},
 			{Role: "user", Content: "用 3 句话解释 SSE 协议。"},

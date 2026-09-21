@@ -59,7 +59,7 @@ func main() {
 	}
 
 	reqBody, err := json.MarshalIndent(ChatRequest{
-		Model: getenv("MODEL", "deepseek-chat"),
+		Model: getenv("MODEL", "deepseek-flash"),
 		Messages: []Message{
 			{Role: "system", Content: "你是一个简洁的中文技术助手，回答不超过 100 字。"},
 			{Role: "user", Content: "用一句话解释什么是 LLM 的 Token。"},
