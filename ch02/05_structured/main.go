@@ -111,7 +111,7 @@ func main() {
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		reqBody, _ := json.Marshal(map[string]any{
-			"model":       getenv("MODEL", "deepseek-chat"),
+			"model":       getenv("MODEL", "deepseek-flash"),
 			"messages":    messages,
 			"temperature": 0, // 结构化输出：确定性优先
 			"max_tokens":  500,

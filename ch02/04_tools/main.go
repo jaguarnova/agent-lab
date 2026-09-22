@@ -11,7 +11,7 @@
 // 另外记录 Tool Success Rate（阶段二验收项）。
 //
 // 前置：本地 PostgreSQL（pg-agent 容器）已建 sales 表。
-// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx MODEL=deepseek-chat go run ./ch02/04_tools
+// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx MODEL=deepseek-flash go run ./ch02/04_tools
 package main
 
 import (
@@ -270,7 +270,7 @@ func main() {
 	client := &http.Client{}
 	for iter := 1; iter <= maxIterations; iter++ {
 		reqBody, _ := json.Marshal(ChatRequest{
-			Model:       getenv("MODEL", "deepseek-chat"),
+			Model:       getenv("MODEL", "deepseek-flash"),
 			Messages:    messages,
 			Tools:       toolDefs,
 			Temperature: 0.2,
