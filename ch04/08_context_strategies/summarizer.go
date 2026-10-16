@@ -77,9 +77,9 @@ func (s HTTPSummarizer) Summarize(ctx context.Context, messages []Message) (stri
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
-		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
+		Usage *struct {
+			PromptTokens     *int `json:"prompt_tokens"`
+			CompletionTokens *int `json:"completion_tokens"`
 		} `json:"usage"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
@@ -92,9 +92,15 @@ func (s HTTPSummarizer) Summarize(ctx context.Context, messages []Message) (stri
 	if text == "" {
 		return "", Usage{}, fmt.Errorf("summary response content is empty")
 	}
+	if decoded.Usage == nil || decoded.Usage.PromptTokens == nil || decoded.Usage.CompletionTokens == nil {
+		return "", Usage{}, fmt.Errorf("summary response usage is incomplete")
+	}
+	if *decoded.Usage.PromptTokens <= 0 || *decoded.Usage.CompletionTokens <= 0 {
+		return "", Usage{}, fmt.Errorf("summary response usage must contain positive token counts")
+	}
 	return text, Usage{
-		InputTokens:  decoded.Usage.PromptTokens,
-		OutputTokens: decoded.Usage.CompletionTokens,
+		InputTokens:  *decoded.Usage.PromptTokens,
+		OutputTokens: *decoded.Usage.CompletionTokens,
 		Latency:      time.Since(started),
 	}, nil
 }

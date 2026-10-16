@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"unicode/utf8"
@@ -113,11 +114,17 @@ func writeContentAddressed(path string, content []byte, expected [sha256.Size]by
 }
 
 func verifyContentAddressed(path string, expected [sha256.Size]byte) error {
-	content, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	actual := sha256.Sum256(content)
+	defer file.Close()
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return fmt.Errorf("hash existing offload file %q: %w", path, err)
+	}
+	var actual [sha256.Size]byte
+	hasher.Sum(actual[:0])
 	if actual != expected {
 		return fmt.Errorf("existing offload file %q has unexpected content", path)
 	}

@@ -83,8 +83,11 @@ func TestHTTPSummarizerRejectsInvalidResponses(t *testing.T) {
 	}{
 		{name: "http error", status: http.StatusInternalServerError, body: "boom"},
 		{name: "malformed json", status: http.StatusOK, body: "{"},
-		{name: "missing choice", status: http.StatusOK, body: `{"choices":[]}`},
-		{name: "empty content", status: http.StatusOK, body: `{"choices":[{"message":{"content":""}}]}`},
+		{name: "missing choice", status: http.StatusOK, body: `{"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}}`},
+		{name: "empty content", status: http.StatusOK, body: `{"choices":[{"message":{"content":""}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`},
+		{name: "missing usage", status: http.StatusOK, body: `{"choices":[{"message":{"content":"summary"}}]}`},
+		{name: "missing usage field", status: http.StatusOK, body: `{"choices":[{"message":{"content":"summary"}}],"usage":{"prompt_tokens":1}}`},
+		{name: "non-positive usage", status: http.StatusOK, body: `{"choices":[{"message":{"content":"summary"}}],"usage":{"prompt_tokens":1,"completion_tokens":0}}`},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
