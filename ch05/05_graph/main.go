@@ -20,41 +20,55 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	cm, err := llm.New(ctx, llm.BaselineMaxTokens)
+	if err != nil {
+		return err
+	}
+
 	tmpl := prompt.FromMessages(schema.FString,
-		schema.SystemMessage("你是一个简洁的中文技术助手，回答不超过 100 字。"),
+		schema.SystemMessage(llm.BaselineSystem),
 		schema.UserMessage("{question}"),
 	)
 
 	graph := compose.NewGraph[map[string]any, *schema.Message]()
 	if err := graph.AddChatTemplateNode("prompt", tmpl); err != nil {
-		log.Fatal(err)
+		return err
 	}
-	if err := graph.AddChatModelNode("model", llm.New(ctx, 200)); err != nil {
-		log.Fatal(err)
+	if err := graph.AddChatModelNode("model", cm); err != nil {
+		return err
 	}
 	if err := graph.AddEdge(compose.START, "prompt"); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := graph.AddEdge("prompt", "model"); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := graph.AddEdge("model", compose.END); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	runnable, err := graph.Compile(ctx, compose.WithGraphName("prompt_model"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	start := time.Now()
-	resp, err := runnable.Invoke(ctx, map[string]any{"question": "用一句话解释什么是 LLM 的 Token。"})
+	resp, err := runnable.Invoke(ctx, map[string]any{"question": llm.BaselineQuestion})
 	latency := time.Since(start)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	if err := llm.ValidateFinal(resp); err != nil {
+		return err
 	}
 
 	fmt.Printf("<<< 回复: %s\n", resp.Content)
@@ -64,4 +78,5 @@ func main() {
 			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
 	}
 	fmt.Printf("<<< 耗时: %s\n", latency.Round(time.Millisecond))
+	return nil
 }

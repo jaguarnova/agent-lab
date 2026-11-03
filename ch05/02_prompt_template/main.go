@@ -19,21 +19,29 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	cm := llm.New(ctx, 200)
+	cm, err := llm.New(ctx, llm.BaselineMaxTokens)
+	if err != nil {
+		return err
+	}
 
 	tmpl := prompt.FromMessages(schema.FString,
-		schema.SystemMessage("你是一个简洁的中文技术助手，读者是{role}，回答不超过 100 字。"),
+		schema.SystemMessage(llm.BaselineSystem),
 		schema.UserMessage("{question}"),
 	)
 
 	msgs, err := tmpl.Format(ctx, map[string]any{
-		"role":     "Go 后端工程师",
-		"question": "用一句话解释什么是 LLM 的 Token。",
+		"question": llm.BaselineQuestion,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	for _, msg := range msgs {
 		fmt.Printf(">>> [%s] %s\n", msg.Role, msg.Content)
@@ -43,7 +51,10 @@ func main() {
 	resp, err := cm.Generate(ctx, msgs)
 	latency := time.Since(start)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	if err := llm.ValidateFinal(resp); err != nil {
+		return err
 	}
 
 	fmt.Printf("<<< 回复: %s\n", resp.Content)
@@ -53,4 +64,5 @@ func main() {
 			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
 	}
 	fmt.Printf("<<< 耗时: %s\n", latency.Round(time.Millisecond))
+	return nil
 }

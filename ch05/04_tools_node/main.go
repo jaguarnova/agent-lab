@@ -14,42 +14,39 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/jaguarnova/agent-lab/ch05/internal/addtool"
 	"github.com/jaguarnova/agent-lab/ch05/internal/llm"
 )
 
-type addInput struct {
-	A int `json:"a" jsonschema:"第一个加数"`
-	B int `json:"b" jsonschema:"第二个加数"`
-}
-
-type addOutput struct {
-	Sum int `json:"sum"`
-}
-
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	base := llm.New(ctx, 512)
-
-	adder, err := utils.InferTool("add", "计算两个整数之和；需要算术时调用",
-		func(_ context.Context, in addInput) (addOutput, error) {
-			return addOutput{Sum: in.A + in.B}, nil
-		})
+	base, err := llm.New(ctx, 512)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+
+	adder, err := addtool.New()
+	if err != nil {
+		return err
 	}
 	info, err := adder.Info(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	withTools, err := base.WithTools([]*schema.ToolInfo{info})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	messages := []*schema.Message{
@@ -61,21 +58,29 @@ func main() {
 	assistant, err := withTools.Generate(ctx, messages)
 	latency := time.Since(start)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	if assistant == nil || assistant.ResponseMeta == nil {
+		return fmt.Errorf("模型工具响应缺少消息或完成元数据")
+	}
+	if assistant.ResponseMeta.FinishReason != "tool_calls" {
+		return fmt.Errorf("模型工具响应未完成工具调用: finish_reason=%q", assistant.ResponseMeta.FinishReason)
 	}
 	if len(assistant.ToolCalls) == 0 {
-		log.Fatalf("模型没有调用工具，content=%q", assistant.Content)
+		return fmt.Errorf("模型没有调用工具，content=%q", assistant.Content)
 	}
-	fmt.Printf("<<< 模型请求工具: %s(%s)，决策耗时=%s\n",
-		assistant.ToolCalls[0].Function.Name, assistant.ToolCalls[0].Function.Arguments, latency.Round(time.Millisecond))
+	for _, call := range assistant.ToolCalls {
+		fmt.Printf("<<< 模型请求工具: %s(%s)，决策耗时=%s\n",
+			call.Function.Name, call.Function.Arguments, latency.Round(time.Millisecond))
+	}
 
 	toolsNode, err := compose.NewToolNode(ctx, &compose.ToolsNodeConfig{Tools: []tool.BaseTool{adder}})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	toolMessages, err := toolsNode.Invoke(ctx, assistant)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	for _, msg := range toolMessages {
 		fmt.Printf("<<< 工具结果 [%s]: %s\n", msg.Role, msg.Content)
@@ -85,7 +90,11 @@ func main() {
 	conversation = append(conversation, toolMessages...)
 	final, err := withTools.Generate(ctx, conversation)
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	if err := llm.ValidateFinal(final); err != nil {
+		return err
 	}
 	fmt.Printf("<<< 最终回答: %s\n", final.Content)
+	return nil
 }

@@ -21,6 +21,12 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	baseCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -53,16 +59,23 @@ func main() {
 
 	ctx := callbacks.InitCallbacks(baseCtx, &callbacks.RunInfo{
 		Component: components.ComponentOfChatModel,
-		Name:      "deepseek-flash",
+		Name:      llm.Name(),
 	}, handler)
 
-	cm := llm.New(ctx, 200)
+	cm, err := llm.New(ctx, 200)
+	if err != nil {
+		return err
+	}
 	resp, err := cm.Generate(ctx, []*schema.Message{
 		schema.SystemMessage("你是一个简洁的中文技术助手，回答不超过 50 字。"),
 		schema.UserMessage("一句话说明 callback 在 Agent 系统里的作用。"),
 	})
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	if err := llm.ValidateFinal(resp); err != nil {
+		return err
 	}
 	fmt.Printf("<<< 回复: %s\n", resp.Content)
+	return nil
 }
