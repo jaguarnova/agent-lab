@@ -1,2 +1,4 @@
 .env
 .worktrees/
+.DS_Store
+.idea/
