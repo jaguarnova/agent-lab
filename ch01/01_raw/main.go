@@ -2,7 +2,7 @@
 // 阶段一练习 1：不使用任何 SDK，用 net/http 直接调用 OpenAI 兼容的 chat/completions 接口。
 // 目标：手动构造请求体、解析响应 JSON，看清一次 LLM 调用的完整数据流。
 //
-// 用法：OPENAI_BASE_URL=https://api.deepseek.com/v1 OPENAI_API_KEY=sk-xxx go run ./ch01/01_raw
+// 用法：DEEPSEEK_BASE_URL=https://api.deepseek.com/v1 DEEPSEEK_API_KEY=sk-xxx go run ./ch01/01_raw
 package main
 
 import (
@@ -54,10 +54,10 @@ type ChatResponse struct {
 }
 
 func main() {
-	baseURL := getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	baseURL := getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "缺少 OPENAI_API_KEY 环境变量")
+		fmt.Fprintln(os.Stderr, "缺少 DEEPSEEK_API_KEY 环境变量")
 		os.Exit(1)
 	}
 

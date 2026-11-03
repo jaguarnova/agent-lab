@@ -8,7 +8,7 @@
 //
 // 对照维度：tokens、延迟、可靠性（schema/SQL 出错时各自的表现）。
 //
-// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx go run ./ch03/06_workflow_vs_agent [workflow|agent|both]
+// 用法：DEEPSEEK_BASE_URL=... DEEPSEEK_API_KEY=sk-xxx go run ./ch03/06_workflow_vs_agent [workflow|agent|both]
 package main
 
 import (
@@ -250,11 +250,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "用法: go run ./ch03/06_workflow_vs_agent [workflow|agent|both]")
 		os.Exit(1)
 	}
-	baseURL = getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-	apiKey = os.Getenv("OPENAI_API_KEY")
+	baseURL = getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+	apiKey = os.Getenv("DEEPSEEK_API_KEY")
 	model = getenv("MODEL", "deepseek-flash")
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "缺少 OPENAI_API_KEY")
+		fmt.Fprintln(os.Stderr, "缺少 DEEPSEEK_API_KEY")
 		os.Exit(1)
 	}
 	db, err := sql.Open("pgx", getenv("DATABASE_URL", "postgres://postgres:agent123@localhost:5432/agent?sslmode=disable"))

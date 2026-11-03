@@ -9,12 +9,12 @@
 //   - 与非流式的区别：choices[].delta（增量）替代 choices[].message（全量）
 //
 // 本版在生产化方向补了两件事（阶段一 P0：Timeout / Cancellation / Retry）：
-//   1. Idle timeout：watchdog 定时器，30s 没有新数据就取消 context 断开流，
-//      防止"连接还在但永远没有 [DONE]"的静默挂死（NAT 超时、上游卡死）。
-//   2. 无状态重试：SSE 无法续流，但 LLM 调用是无状态的——messages 就是完整状态，
-//      断了直接整体重发，最多 3 次，指数退避。
+//  1. Idle timeout：watchdog 定时器，30s 没有新数据就取消 context 断开流，
+//     防止"连接还在但永远没有 [DONE]"的静默挂死（NAT 超时、上游卡死）。
+//  2. 无状态重试：SSE 无法续流，但 LLM 调用是无状态的——messages 就是完整状态，
+//     断了直接整体重发，最多 3 次，指数退避。
 //
-// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx go run ./ch01/02_stream
+// 用法：DEEPSEEK_BASE_URL=... DEEPSEEK_API_KEY=sk-xxx go run ./ch01/02_stream
 package main
 
 import (
@@ -40,7 +40,7 @@ type Message struct {
 type ChatRequest struct {
 	Model       string    `json:"model"`
 	Messages    []Message `json:"messages"`
-	Stream      bool      `json:"stream"`              // 关键开关：true = SSE 流式
+	Stream      bool      `json:"stream"`                // 关键开关：true = SSE 流式
 	Temperature float64   `json:"temperature,omitempty"` // 随机性：工具调用/结构化输出用 0~0.2
 	TopP        float64   `json:"top_p,omitempty"`       // 候选截断：与 temperature 二选一调
 	MaxTokens   int       `json:"max_tokens,omitempty"`  // 输出上限，超限 finish_reason=length
@@ -75,8 +75,8 @@ type Usage struct {
 }
 
 const (
-	maxAttempts   = 3                // 断流重试次数
-	retryBaseWait = 1 * time.Second  // 指数退避起步：1s, 2s, 4s
+	maxAttempts   = 3               // 断流重试次数
+	retryBaseWait = 1 * time.Second // 指数退避起步：1s, 2s, 4s
 )
 
 // idleTimeout 可用 IDLE_TIMEOUT 环境变量覆盖（秒），默认 30s。
@@ -96,10 +96,10 @@ func idleTimeout() time.Duration {
 var errIdleTimeout = errors.New("idle timeout: 流超过空闲上限无新数据")
 
 func main() {
-	baseURL := getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	baseURL := getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "缺少 OPENAI_API_KEY 环境变量")
+		fmt.Fprintln(os.Stderr, "缺少 DEEPSEEK_API_KEY 环境变量")
 		os.Exit(1)
 	}
 
@@ -168,11 +168,11 @@ func streamOnce(baseURL, apiKey string, messages []Message) (int, strings.Builde
 	var usage *Usage
 
 	reqBody, _ := json.Marshal(ChatRequest{
-		Model:       getenv("MODEL", "deepseek-flash"),
-		Messages:    messages,
-		Temperature: getfloat("TEMPERATURE", 0.7),
-		MaxTokens:   int(getfloat("MAX_TOKENS", 200)),
-		Stream:      true,
+		Model:         getenv("MODEL", "deepseek-flash"),
+		Messages:      messages,
+		Temperature:   getfloat("TEMPERATURE", 0.7),
+		MaxTokens:     int(getfloat("MAX_TOKENS", 200)),
+		Stream:        true,
 		StreamOptions: &StreamOptions{IncludeUsage: true}, // 流式下 usage 默认不返回，显式索取
 	})
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(reqBody))

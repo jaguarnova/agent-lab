@@ -37,13 +37,13 @@ func main() {
 
 	var summarizer Summarizer
 	if cfg.Strategy == "summarize" || cfg.Strategy == "all" {
-		apiKey := os.Getenv("OPENAI_API_KEY")
+		apiKey := os.Getenv("DEEPSEEK_API_KEY")
 		if apiKey == "" {
-			fmt.Fprintln(os.Stderr, "OPENAI_API_KEY is required for summarize/all")
+			fmt.Fprintln(os.Stderr, "DEEPSEEK_API_KEY is required for summarize/all")
 			os.Exit(2)
 		}
 		summarizer = HTTPSummarizer{
-			BaseURL: getenvDefault("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+			BaseURL: getenvDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
 			APIKey:  apiKey,
 			Model:   getenvDefault("MODEL", "deepseek-flash"),
 		}

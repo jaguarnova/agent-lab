@@ -10,7 +10,7 @@
 //  2. 语法校验：json.Unmarshal 失败 → 重试
 //  3. 语义校验：自定义业务规则（数值范围、必填字段）→ 带错误信息重试
 //
-// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx go run ./ch02/05_structured
+// 用法：DEEPSEEK_BASE_URL=... DEEPSEEK_API_KEY=sk-xxx go run ./ch02/05_structured
 package main
 
 import (
@@ -77,10 +77,10 @@ func validate(r SalesReport) error {
 const maxAttempts = 3
 
 func main() {
-	baseURL := getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	baseURL := getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "缺少 OPENAI_API_KEY")
+		fmt.Fprintln(os.Stderr, "缺少 DEEPSEEK_API_KEY")
 		os.Exit(1)
 	}
 

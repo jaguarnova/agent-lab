@@ -2,7 +2,7 @@
 // 阶段一练习 3：用 OpenAI 官方 Go SDK (openai-go) 实现与 01_raw 完全相同的功能，
 // 对比"SDK 帮你做了什么、藏了什么"。
 //
-// 用法：OPENAI_BASE_URL=... OPENAI_API_KEY=sk-xxx MODEL=deepseek-flash go run ./ch01/03_sdk
+// 用法：DEEPSEEK_BASE_URL=... DEEPSEEK_API_KEY=sk-xxx MODEL=deepseek-flash go run ./ch01/03_sdk
 package main
 
 import (
@@ -18,10 +18,10 @@ import (
 )
 
 func main() {
-	baseURL := getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	baseURL := getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "缺少 OPENAI_API_KEY 环境变量")
+		fmt.Fprintln(os.Stderr, "缺少 DEEPSEEK_API_KEY 环境变量")
 		os.Exit(1)
 	}
 
